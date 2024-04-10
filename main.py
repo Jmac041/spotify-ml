@@ -12,6 +12,11 @@ import seaborn as sns
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 import plotly.express as px
+from sklearn.cluster import KMeans
+from sklearn.pipeline import Pipeline
+from sklearn.manifold import TSNE
+from sklearn.metrics import euclidean_distances
+from scipy.spatial.distance import cdist
 
 
 # # Description of the Dataset
@@ -120,4 +125,79 @@ plt.grid(True)
 plt.show()
 
 
+# In[18]:
+
+
+fig, axs = plt.subplots(nrows=3, ncols=4, constrained_layout=True, figsize=(20,15))
+sns.histplot(ax=axs[0][0],x=data["popularity"],color="grey")
+sns.histplot(ax=axs[0][1],x=data["duration_ms"],color="red")
+sns.histplot(ax=axs[0][2],x=data["danceability"],color="blue")
+sns.histplot(ax=axs[0][3],x=data["energy"],color="purple")
+sns.histplot(ax=axs[1][0],x=data["loudness"],color="black")
+sns.histplot(ax=axs[1][1],x=data["speechiness"],color="red")
+sns.histplot(ax=axs[1][2],x=data["acousticness"],color="orange")
+sns.histplot(ax=axs[1][3],x=data["instrumentalness"],color="yellow")
+sns.histplot(ax=axs[2][0],x=data["liveness"],color="green")
+sns.histplot(ax=axs[2][1],x=data["valence"],color="brown")
+sns.histplot(ax=axs[2][2],x=data["tempo"],color="magenta")
+sns.histplot(ax=axs[2][3],x=data["year"],color="indigo")
+plt.show()
+
+
 # Both of the graphs above trend energy and loudness, respectively, over the decades. This helps us understand how music has evolved and shifted throughout the decades, and helps us correlate these features with what a user would like. Since there are obivous trends in how the music in each decade sounds, we can maybe gain some insight into what decade of music to recommend to a user if we know specific patterns on the average loudness/energy or other feature of songs they listen to.
+
+# In[13]:
+
+
+# Select only the numerical features for clustering
+# Includes year, but could also remove to prevent listening to certain eras 
+features_to_cluster = [
+    'acousticness', 'danceability', 'energy', 'instrumentalness',
+    'liveness', 'loudness', 'speechiness', 'tempo', 'valence'
+]
+
+# Extract the relevant numerical features
+X = data[features_to_cluster]
+
+# Standardize the features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+
+# In[14]:
+
+
+# Define a unique seed for reproducibility
+seed = 42
+kmeans = KMeans(n_clusters=15, random_state=seed)
+
+# Fit the K-means model
+kmeans.fit(X_scaled)
+
+# Assign the cluster labels to each song
+data['cluster_label'] = kmeans.labels_
+
+
+# In[15]:
+
+
+pca_pipeline = Pipeline([('scaler', StandardScaler()), ('PCA', PCA(n_components=2))])
+song_embedding = pca_pipeline.fit_transform(X)
+projection = pd.DataFrame(columns=['x', 'y'], data=song_embedding)
+projection['title'] = data['name']
+projection['cluster'] = data['cluster_label']
+
+fig = px.scatter(
+    projection, x='x', y='y', color='cluster', hover_data=['x', 'y', 'title'])
+fig.show()
+
+
+# In[16]:
+
+
+# Get centroids of each cluster
+centroids = scaler.inverse_transform(kmeans.cluster_centers_)
+centroids_df = pd.DataFrame(centroids, columns=features_to_cluster)
+
+# Analyze the centroids to understand each cluster
+print(centroids_df)
