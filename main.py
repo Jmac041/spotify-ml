@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[3]:
+
+# In[4]:
 
 
 import os
@@ -23,33 +24,33 @@ from scipy.spatial.distance import cdist
 
 # Our dataset is from Kaggle.com. It contains song data specifically features such as (artist name, popularity, key, release_date, etc). In total each song has 19 features given, and there are 107,654 songs (instances). Our target variable is a song recommendation based on past listening habits. Below, we load the dataset, try to locate null values, and plot some of the interesting data.
 
-# In[4]:
+# In[5]:
 
 
 # Load the dataset
 data = pd.read_csv('../data.csv')
 
 
-# In[5]:
+# In[6]:
 
 
 print(data.head())
 
 
-# In[6]:
+# In[7]:
 
 
 # Check if there are any empty values in the dataset
 data.isnull().values.any()
 
 
-# In[7]:
+# In[8]:
 
 
 data.isnull().sum()
 
 
-# In[8]:
+# In[9]:
 
 
 # Drop non-numeric columns
@@ -67,7 +68,7 @@ plt.show()
 
 # Using this heat map, we are able to see the correlation of different features on our dataset. This will help us in the future to use this features to hopefully recommend similar songs. From this we can see some interesting correlations, as with year and populatiry, or with loudness and energy that could be useful for the next steps in this project.
 
-# In[9]:
+# In[10]:
 
 
 # Plotting the distribution of the key attribute
@@ -85,7 +86,7 @@ plt.show()
 
 # We can see that even the lowest frequency of key 3 has about 7500 instances which is more than enough for testing purposes. This validates the quality of our dataset. It also gives us a sense of how balanced our data is, and from this we can infer that we are working with a good quality dataset.
 
-# In[10]:
+# In[11]:
 
 
 # Group by year and calculate the mean energy for each year
@@ -105,7 +106,7 @@ plt.grid(True)
 plt.show()
 
 
-# In[11]:
+# In[12]:
 
 
 # Group by 'year' and calculate the mean loudness for each year
@@ -125,7 +126,7 @@ plt.grid(True)
 plt.show()
 
 
-# In[18]:
+# In[13]:
 
 
 fig, axs = plt.subplots(nrows=3, ncols=4, constrained_layout=True, figsize=(20,15))
@@ -146,11 +147,12 @@ plt.show()
 
 # Both of the graphs above trend energy and loudness, respectively, over the decades. This helps us understand how music has evolved and shifted throughout the decades, and helps us correlate these features with what a user would like. Since there are obivous trends in how the music in each decade sounds, we can maybe gain some insight into what decade of music to recommend to a user if we know specific patterns on the average loudness/energy or other feature of songs they listen to.
 
-# In[13]:
+# In[31]:
 
 
 # Select only the numerical features for clustering
 # Includes year, but could also remove to prevent listening to certain eras 
+# Define the features to cluster
 features_to_cluster = [
     'acousticness', 'danceability', 'energy', 'instrumentalness',
     'liveness', 'loudness', 'speechiness', 'tempo', 'valence'
@@ -164,7 +166,7 @@ scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
 
-# In[14]:
+# In[32]:
 
 
 # Define a unique seed for reproducibility
@@ -178,21 +180,24 @@ kmeans.fit(X_scaled)
 data['cluster_label'] = kmeans.labels_
 
 
-# In[15]:
+# In[33]:
 
 
+# Create a PCA pipeline
 pca_pipeline = Pipeline([('scaler', StandardScaler()), ('PCA', PCA(n_components=2))])
 song_embedding = pca_pipeline.fit_transform(X)
-projection = pd.DataFrame(columns=['x', 'y'], data=song_embedding)
+projection = pd.DataFrame(data=song_embedding, columns=['x', 'y'])
 projection['title'] = data['name']
 projection['cluster'] = data['cluster_label']
 
+# Visualization
 fig = px.scatter(
-    projection, x='x', y='y', color='cluster', hover_data=['x', 'y', 'title'])
+    projection, x='x', y='y', color='cluster', hover_data=['title']
+)
 fig.show()
 
 
-# In[16]:
+# In[25]:
 
 
 # Get centroids of each cluster
@@ -201,3 +206,34 @@ centroids_df = pd.DataFrame(centroids, columns=features_to_cluster)
 
 # Analyze the centroids to understand each cluster
 print(centroids_df)
+
+
+# In[34]:
+
+
+def recommend_from_each_cluster(data, scaler, kmeans, features_to_cluster, num_clusters):
+    recommendations = []
+    
+    # Convert the features of the songs to a numpy array for distance calculation
+    songs_features = scaler.transform(data[features_to_cluster].values)
+    
+    for cluster_num in range(num_clusters):
+        # Filter the songs that belong to the current cluster
+        cluster_songs = data[data['cluster_label'] == cluster_num]
+        cluster_features = songs_features[cluster_songs.index, :]
+        
+        # Calculate the distance of each song in the cluster to the centroid
+        centroid = kmeans.cluster_centers_[cluster_num]
+        distances = np.linalg.norm(cluster_features - centroid, axis=1)
+        
+        # Find the index of the song with the smallest distance to the centroid
+        closest_song_idx = cluster_songs.index[np.argmin(distances)]
+        closest_song = data.loc[closest_song_idx]
+        
+        recommendations.append(closest_song)
+    
+    return pd.DataFrame(recommendations)
+
+# Call the function to get the recommendations
+recommendations = recommend_from_each_cluster(data, scaler, kmeans, features_to_cluster, num_clusters=15)
+print(recommendations[['name', 'artists', 'cluster_label']])
