@@ -237,3 +237,33 @@ def recommend_from_each_cluster(data, scaler, kmeans, features_to_cluster, num_c
 # Call the function to get the recommendations
 recommendations = recommend_from_each_cluster(data, scaler, kmeans, features_to_cluster, num_clusters=15)
 print(recommendations[['name', 'artists', 'cluster_label']])
+
+
+# Determine which cluster a given song belongs to
+def find_song_cluster(song_name, song_data):
+    try:
+        # Find the cluster label for the input song
+        cluster_label = song_data[song_data['name'] == song_name]['cluster_label'].iloc[0]
+        return cluster_label
+    except IndexError:
+        return "Song not found in the database."
+
+# Recommend songs in the same cluster
+def recommend_songs_from_cluster(song_name, song_data, number_of_songs=5):
+    cluster_label = find_song_cluster(song_name, song_data)
+    
+    if isinstance(cluster_label, str):
+        return cluster_label  # Return the error message if song not found
+
+    # Filter songs from the same cluster
+    recommendations = song_data[song_data['cluster_label'] == cluster_label]
+    
+    # Remove the input song from the recommendations
+    recommendations = recommendations[recommendations['name'] != song_name]
+    
+    # Sort recommendations by some criteria e.g., popularity
+    recommendations = recommendations.sort_values(by='popularity', ascending=False)
+    
+    return recommendations.head(number_of_songs)
+
+print(recommend_songs_from_cluster("Shape of You", data))
